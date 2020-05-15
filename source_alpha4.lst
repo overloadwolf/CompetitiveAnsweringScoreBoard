@@ -1,0 +1,728 @@
+
+ASEM-51 V1.3                                         Copyright (c) 2002 by W.W. Heinz                                         PAGE 1
+
+
+
+
+
+       MCS-51 Family Macro Assembler   A S E M - 5 1   V 1.3
+       =====================================================
+
+
+
+	Source File:	source_alpha4.asm
+	Object File:	source_alpha4.hex
+	List File:	source_alpha4.lst
+
+
+
+ Line  I  Addr  Code            Source
+
+    1:		N      0050	COM EQU 50H ; LCD指令寄存器
+    2:		N      0051	DAT EQU 51H ; LCD数据寄存器
+    3:
+    4:		B      00A0	RS EQU P2.0 ; LCD寄存器选择信号
+    5:		B      00A1	RW EQU P2.1 ; LCD读/写选择信号
+    6:		B      00A2	E EQU P2.2  ; LCD使能信号
+    7:				;****** 中断源矢量表设置 **************************************************
+    8:		N      0000		ORG	0000H		;复位入口
+    9:	  0000	02 00 40		LJMP	MAIN	;转到主程序
+   10:		N      0003		ORG	0003H		;INT0矢量地址
+   11:	  0003	02 00 7F		LJMP 	ADJ1	;由打开计分板按钮引起的查看计分板处理
+   12:		N      000B		ORG	000BH		;T0中断入口
+   13:	  000B	02 01 B0		LJMP	TT0		;转到T0中断服务程序
+   14:		N      0013		ORG 0013H 		;INT1矢量地址
+   15:	  0013	02 00 EB		LJMP	RACE	;由开始抢答按钮引起的开始抢答阶段中断处理
+   16:		N      0040		ORG 0040h 		;主程序入口
+   17:	  0040			MAIN:
+   18:	  0040	75 81 A0		MOV SP,#0A0H	;设置堆栈指针
+   19:	  0043	75 20 0A		MOV	20H,#0AH	;设置中断次数
+   20:	  0046	75 30 00		MOV	30H,#00H	;分单元清0
+   21:	  0049	75 31 00		MOV	31H,#00H	;秒单元清0
+   22:	  004C	75 32 00		MOV	32H,#00H	;毫秒单元清0
+   23:	  004F	75 33 00		MOV	33H,#00H	;目标选手单元清0
+   24:	  0052	75 34 00		MOV	34H,#00H	;1号选手计分单元清0
+   25:	  0055	75 35 00		MOV	35H,#00H	;2号选手计分单元清0
+   26:	  0058	75 36 00		MOV	36H,#00H	;3号选手计分单元清0
+   27:	  005B	75 37 00		MOV	37H,#00H	;4号选手计分单元清0
+   28:	  005E	75 38 00		MOV 38H,#00H	;循环控制变量
+   29:	  0061	D2 A8			SETB	EX0		;允许INT0中断
+   30:	  0063	D2 AA			SETB	EX1		;允许INT0中断
+   31:	  0065	D2 A9			SETB 	ET0		;允许T0中断
+   32:	  0067	D2 B9			SETB	PT0
+   33:	  0069	C2 88			CLR	IT0		;设INT0用负边沿触发
+   34:	  006B	C2 8A			CLR	IT1		;设INT1用负边沿触发
+   35:	  006D	75 80 00		MOV P0,#00H
+   36:	  0070	75 A0 00		MOV P2,#00H
+   37:	  0073	75 90 55		MOV P1,#055H	;P1赋初值
+   38:	  0076	D2 AF			SETB	EA		;中断总控开启
+   39:	  0078	12 01 E7		LCALL INT       ;调LCD间接控制方式下的初始化子程序
+   40:	  007B	51 7E			ACALL WRIN0
+   41:	  007D			LOP:
+   42:	  007D	80 FE			SJMP $
+   43:				;****** 计分板阶段开始 **************************************************
+
+ASEM-51 V1.3                                         Copyright (c) 2002 by W.W. Heinz                                         PAGE 2
+
+
+
+ Line  I  Addr  Code            Source
+
+   44:	  007F			ADJ1:
+   45:	  007F	C0 D0			PUSH	PSW		;保护中断现场(PSW数据进栈)
+   46:	  0081	C0 E0			PUSH	ACC		;保护中断现场(ACC数据进栈)
+   47:	  0083	78 34			MOV R0,#34H
+   48:	  0085	75 33 31		MOV 33H,#031H
+   49:	  0088			DIS1:
+   50:	  0088	E6			MOV A,@R0
+   51:	  0089	F9			MOV R1,A
+   52:	  008A	12 02 DD		LCALL DIS_PLAYER
+   53:	  008D			LOP1:
+   54:	  008D			PREV1:
+   55:	  008D	20 B4 13		JB	P3.4,NEXT1	;上一位键未按下,则转跳到判下一位键
+   56:	  0090	30 B4 FD		JNB	P3.4,$		;上一位键按下,则等待放开上一位键
+   57:	  0093	E8			MOV	A,R0		;将当前选手编号,送到A寄存器
+   58:	  0094	14			DEC A			;上一位
+   59:	  0095	D4			DA	A			;十进制调整
+   60:	  0096	F8			MOV R0,A 		;存回选手指针
+   61:	  0097	15 33			DEC 33H
+   62:	  0099	B4 33 EC		CJNE	A,#033H,DIS1	;防止R0指针溢出
+   63:	  009C	75 33 34		MOV 33H,#034H
+   64:	  009F	78 37			MOV R0,#037H
+   65:	  00A1	80 E5			SJMP	DIS1		;返回主程序
+   66:	  00A3			NEXT1:
+   67:	  00A3	20 B5 13		JB	P3.5,INC1	;下一位未按下,则转跳到判增量键
+   68:	  00A6	30 B5 FD		JNB	P3.5,$		;下一位按下,则等待放开下一位键
+   69:	  00A9	E8			MOV	A,R0		;将当前选手编号,送到A寄存器
+   70:	  00AA	04			INC A			;下一位
+   71:	  00AB	D4			DA	A			;十进制调整
+   72:	  00AC	F8			MOV R0,A 		;存回选手指针
+   73:	  00AD	05 33			INC 33H
+   74:	  00AF	B4 38 D6		CJNE	A,#038H,DIS1	;防止R0指针溢出
+   75:	  00B2	78 34			MOV R0,#034H
+   76:	  00B4	75 33 31		MOV 33H,#031H
+   77:	  00B7	80 CF			SJMP	DIS1		;返回主程序
+   78:	  00B9			INC1:
+   79:	  00B9	20 B6 0D		JB	P3.6,DES1	;增量键未按下,则转跳到减量键
+   80:	  00BC	30 B6 FD		JNB	P3.6,$		;增量键按下,则等待放开增量键
+   81:	  00BF	E6			MOV	A,@R0		;将当前选手分数,送到A寄存器
+   82:	  00C0	04			INC A			;分数加一
+   83:	  00C1	F6			MOV @R0,A 		;存回分数
+   84:	  00C2	B4 64 C3		CJNE	A,#064H,DIS1	;防止分数溢出
+   85:	  00C5	78 63			MOV R0,#063H
+   86:	  00C7	80 BF			SJMP	DIS1		;返回主程序
+   87:	  00C9			DES1:
+   88:	  00C9	20 B7 0D		JB	P3.7,BKTM	;减量键未按下,则转跳到返回键判定
+   89:	  00CC	30 B7 FD		JNB	P3.7,$		;减量键按下,则等待放开减量键
+   90:	  00CF	E6			MOV	A,@R0		;将当前选手分数,送到A寄存器
+   91:	  00D0	B4 00 02		CJNE A,#00H,TEMP1	;为0不处理直接跳转
+   92:	  00D3	80 B3			SJMP	DIS1		;返回主程序
+   93:	  00D5			TEMP1:
+   94:	  00D5	14			DEC A			;分数减一
+   95:	  00D6	F6			MOV @R0,A 		;存回分数
+   96:	  00D7	80 AF			SJMP	DIS1		;返回主程序
+   97:	  00D9			BKTM:
+   98:	  00D9	20 B1 B1		JB	P3.1,LOP1	;返回键未按下,则转跳到LOP1等待按键
+   99:	  00DC	30 B1 FD		JNB	P3.1,$		;返回键按下，则等待放开返回键
+
+ASEM-51 V1.3                                         Copyright (c) 2002 by W.W. Heinz                                         PAGE 3
+
+
+
+ Line  I  Addr  Code            Source
+
+  100:	  00DF	80 00			SJMP RETI1		;直接返回主程序
+  101:	  00E1			RETI1:
+  102:	  00E1	D0 E0			POP	ACC		;恢复中断入口时现场ACC
+  103:	  00E3	D0 D0			POP	PSW		;恢复中断入口时现场PSW
+  104:	  00E5	75 90 55		MOV P1,#055H
+  105:	  00E8	51 7E			ACALL WRIN0		;清屏
+  106:	  00EA	32			RETI
+  107:				;****** 计时抢答阶段开始 **************************************************
+  108:	  00EB			RACE:
+  109:	  00EB	C0 D0			PUSH	PSW		;保护中断现场(PSW数据进栈)
+  110:	  00ED	C0 E0			PUSH	ACC		;保护中断现场(ACC数据进栈)
+  111:	  00EF	75 30 00		MOV	30H,#00H	;分单元清0
+  112:	  00F2	75 31 00		MOV	31H,#00H	;秒单元清0
+  113:	  00F5	75 32 00		MOV	32H,#00H	;毫秒单元清0
+  114:	  00F8			CONTINUE:
+  115:	  00F8	75 89 01		MOV TMOD,#01H		;设置定时器模式
+  116:	  00FB	75 8A 18		MOV TL0,#018H		;设置定时初值
+  117:	  00FE	75 8C FC		MOV TH0,#0FCH		;设置定时初值
+  118:	  0101	D2 8C			SETB TR0	;T0开始计时
+  119:	  0103	75 90 55		MOV P1,#055H	;P1赋初值
+  120:	  0106	12 02 91		LCALL DIS_TIME_1
+  121:	  0109			LOP2:
+  122:	  0109	12 02 BB		LCALL DIS_TIME_2
+  123:	  010C			C1:
+  124:	  010C	20 90 08		JB	P1.0,C2		;1号未按下,则转跳判2号
+  125:	  010F	75 33 31		MOV 33H,#031H	;选中1号选手
+  126:	  0112	78 34			MOV R0,#34H
+  127:	  0114	02 01 38		LJMP ADJ2
+  128:	  0117			C2:
+  129:	  0117	20 92 08		JB	P1.2,C3		;2号未按下,则转跳判3号
+  130:	  011A	75 33 32		MOV 33H,#032H;	选中2号选手
+  131:	  011D	78 35			MOV R0,#35H
+  132:	  011F	02 01 38		LJMP ADJ2
+  133:	  0122			C3:
+  134:	  0122	20 94 08		JB	P1.4,C4		;3号未按下,则转跳判4号
+  135:	  0125	75 33 33		MOV 33H,#033H	;选中3号选手
+  136:	  0128	78 36			MOV R0,#36H
+  137:	  012A	02 01 38		LJMP ADJ2
+  138:	  012D			C4:
+  139:	  012D	20 96 D9		JB	P1.6,LOP2	;4号未按下
+  140:	  0130	75 33 34		MOV 33H,#034H	;选中4号选手
+  141:	  0133	78 37			MOV R0,#37H
+  142:	  0135	02 01 38		LJMP ADJ2
+  143:				;****** 计时判定阶段开始 **************************************************
+  144:	  0138			ADJ2:
+  145:	  0138	C2 8C			CLR TR0			;暂停T0计时
+  146:				;****** 蜂鸣器响 **************************************************
+  147:	  013A	B2 A3			CPL P2.3                             ;50ms的方波，蜂鸣器响1s
+  148:	  013C	71 40			ACALL DELAY200MS
+  149:				;****** 蜂鸣器响 **************************************************
+  150:	  013E	C2 A3			CLR P2.3
+  151:	  0140			DIS2:
+  152:	  0140	51 DD			ACALL DIS_PLAYER
+  153:	  0142			PREV2:
+  154:	  0142	20 B4 13		JB	P3.4,NEXT2	;上一位键未按下,则转跳到判下一位键
+  155:	  0145	30 B4 FD		JNB	P3.4,$		;上一位键按下,则等待放开上一位键
+
+ASEM-51 V1.3                                         Copyright (c) 2002 by W.W. Heinz                                         PAGE 4
+
+
+
+ Line  I  Addr  Code            Source
+
+  156:	  0148	E8			MOV	A,R0		;将当前选手编号,送到A寄存器
+  157:	  0149	14			DEC A			;上一位
+  158:	  014A	D4			DA	A			;十进制调整
+  159:	  014B	F8			MOV R0,A 		;存回选手指针
+  160:	  014C	15 33			DEC 33H
+  161:	  014E	B4 33 EF		CJNE	A,#033H,DIS2	;防止R0指针溢出
+  162:	  0151	78 37			MOV R0,#37H
+  163:	  0153	75 33 34		MOV 33H,#034H
+  164:	  0156	80 E8			SJMP	DIS2		;返回DIS2等待按键
+  165:	  0158			NEXT2:
+  166:	  0158	20 B5 13		JB	P3.5,INC2	;下一位未按下,则转跳到判增量键
+  167:	  015B	30 B5 FD		JNB	P3.5,$		;下一位按下,则等待放开下一位键
+  168:	  015E	E8			MOV	A,R0		;将当前选手编号,送到A寄存器
+  169:	  015F	04			INC A			;下一位
+  170:	  0160	D4			DA	A			;十进制调整
+  171:	  0161	F8			MOV R0,A 		;存回选手指针
+  172:	  0162	05 33			INC 33H
+  173:	  0164	B4 38 D9		CJNE	A,#038H,DIS2	;防止R0指针溢出
+  174:	  0167	78 34			MOV R0,#34H
+  175:	  0169	75 33 31		MOV 33H,#031H
+  176:	  016C	80 D2			SJMP	DIS2		;返回DIS2等待按键
+  177:	  016E			INC2:
+  178:	  016E	20 B6 0B		JB	P3.6,DES2	;增量键未按下,则转跳到减量键
+  179:	  0171	30 B6 FD		JNB	P3.6,$		;增量键按下,则等待放开增量键
+  180:	  0174	E6			MOV	A,@R0		;将当前选手分数,送到A寄存器
+  181:	  0175	04			INC A			;分数加一
+  182:	  0176	F6			MOV @R0,A 		;存回分数
+  183:	  0177	B4 64 28		CJNE	A,#064H,RETI2	;防止分数溢出
+  184:	  017A	80 26			SJMP	RETI2		;返回主程序
+  185:	  017C			DES2:
+  186:	  017C	20 B7 0D		JB	P3.7,COTN	;减量键未按下,则转跳到继续计时判定
+  187:	  017F	30 B7 FD		JNB	P3.7,$		;减量键按下,则等待放开减量键
+  188:	  0182	E6			MOV	A,@R0		;将当前选手分数,送到A寄存器
+  189:	  0183	B4 00 02		CJNE A,#00H,TEMP2 	;为0不处理直接跳转
+  190:	  0186	80 1A			SJMP RETI2
+  191:	  0188			TEMP2:
+  192:	  0188	14			DEC A			;分数减一
+  193:	  0189	F6			MOV @R0,A 		;存回分数
+  194:	  018A	80 16			SJMP	RETI2		;返回主程序
+  195:	  018C			COTN:
+  196:	  018C	20 B0 0B		JB	P3.0,BK		;继续计时键未按下,则转跳到返回键判定
+  197:	  018F	30 B0 FD		JNB	P3.0,$		;继续计时键按下，则等待放开继续计时键
+  198:	  0192	D2 8C			SETB TR0		;开启T0
+  199:	  0194	75 90 55		MOV P1,#055H		;重置P0输入
+  200:	  0197	02 00 F8		LJMP CONTINUE	;继续进入等待回答阶段
+  201:	  019A			BK:
+  202:	  019A	20 B1 A5		JB	P3.1,PREV2	;返回键未按下,则转跳到ADJ2等待按键
+  203:	  019D	30 B1 FD		JNB	P3.1,$		;返回键按下，则等待放开返回键
+  204:	  01A0	80 00			SJMP RETI2		;直接返回主程序
+  205:	  01A2			RETI2:
+  206:	  01A2	75 90 55		MOV P1,#055H
+  207:	  01A5	51 DD			ACALL DIS_PLAYER
+  208:	  01A7	71 5F			ACALL DELAY500MS
+  209:	  01A9	51 7E			ACALL WRIN0		;清屏
+  210:	  01AB	D0 E0			POP ACC
+  211:	  01AD	D0 D0			POP PSW
+
+ASEM-51 V1.3                                         Copyright (c) 2002 by W.W. Heinz                                         PAGE 5
+
+
+
+ Line  I  Addr  Code            Source
+
+  212:	  01AF	32			RETI
+  213:
+  214:	  01B0			TT0:
+  215:	  01B0	C0 D0			PUSH	PSW		;保护中断现场(PSW数据进栈)
+  216:	  01B2	C0 E0			PUSH	ACC		;保护中断现场(ACC数据进栈)
+  217:	  01B4	75 8C FC		MOV	 TH0,#0FCH	;重新装入T0初值高位
+  218:	  01B7	75 8A 18		MOV	 TL0,#018H	;重新装入T0初值低位
+  219:	  01BA	D5 20 25		DJNZ 20H,TT0_RT ;10ms定时未到，返回
+  220:	  01BD	75 20 0A		MOV 20H,#0AH	;重装中断次数
+  221:	  01C0	74 01			MOV A,#01H
+  222:	  01C2	25 32			ADD A,32H   ;毫秒值加1
+  223:					;DA	 A		    ;十进制调整
+  224:	  01C4	F5 32		   	MOV  32H,A		;毫秒值存回32H单元
+  225:	  01C6	B4 64 19		CJNE A,#064H,TT0_RT	;毫秒值未到1000,则跳至中断出口
+  226:	  01C9	75 32 00		MOV  32H,#00H	;毫秒值已到1000,则毫秒值单元清0
+  227:
+  228:	  01CC	E5 31			MOV  A,31H		;取31H单元的秒值
+  229:	  01CE	04			INC  A			;秒单元加1
+  230:					;DA	 A		    ;秒值为BCD码,须十进制调整
+  231:	  01CF	F5 31			MOV	 31H,A		;秒值存回31H单元
+  232:	  01D1	B4 3C 0E	   	CJNE A,#03CH,TT0_RT	;秒值未到60,则跳至中断出口
+  233:	  01D4	75 31 00		MOV  31H,#00H	;秒值已到60,则秒值单元清0
+  234:
+  235:	  01D7	E5 30			MOV  A,30H		;取30H单元的分值
+  236:	  01D9	04			INC  A			;分单元加1
+  237:					;DA	 A		    ;分值为BCD码,须十进制调整
+  238:	  01DA	F5 30			MOV	 30H,A		;分值存回30H单元
+  239:	  01DC	B4 3C 03		CJNE A,#03CH,TT0_RT	;分值未到60,则跳至中断出口
+  240:	  01DF	75 30 00		MOV	 30H,#00H	;分值已到60,则分值单元清0
+  241:	  01E2			TT0_RT:
+  242:	  01E2	D0 E0			POP	ACC		;恢复中断入口时现场ACC
+  243:	  01E4	D0 D0		    POP	PSW		;恢复中断入口时现场PSW
+  244:	  01E6	32			RETI
+  245:				;*****LCD1206 **************************************************
+  246:				;忙标志判断子程序
+  247:	  01E7	12 02 19	INT: 	LCALL DELAY ; 调延时子程序
+  248:	  01EA	75 80 38			MOV P0,#38H ; 工作方式设置指令代码
+  249:	  01ED	C2 A0				CLR RS      ; RS=0
+  250:	  01EF	C2 A1				CLR RW      ; R/W=0
+  251:	  01F1	7A 03				MOV R2,#03  ; 循环量=3
+  252:	  01F3	D2 A2		INTT1: 	SETB E ; E=1
+  253:	  01F5	C2 A2				CLR E         ; E=0
+  254:	  01F7	DA FA				DJNZ R2,INTT1
+  255:	  01F9	75 80 38			MOV P0,#38H ; 设置工作方式*
+  256:	  01FC	D2 A2				SETB E      ; E=1
+  257:	  01FE	C2 A2				CLR E       ; E=0
+  258:	  0200	75 50 38			MOV COM,#38H ; 设置工作方式
+  259:	  0203	12 02 39			LCALL PR1
+  260:	  0206	75 50 01			MOV COM,#01H ; 清屏
+  261:	  0209	12 02 39			LCALL PR1
+  262:	  020C	75 50 06			MOV COM,#06H ; 设置输入方式
+  263:	  020F	12 02 39			LCALL PR1
+  264:	  0212	75 50 0E			MOV COM,#0EH ; 设置显示方式
+  265:	  0215	12 02 39			LCALL PR1
+  266:	  0218	22				RET
+  267:
+
+ASEM-51 V1.3                                         Copyright (c) 2002 by W.W. Heinz                                         PAGE 6
+
+
+
+ Line  I  Addr  Code            Source
+
+  268:	  0219	7E 0F		DELAY:	MOV R6,#0FH ; 延时子程序
+  269:	  021B	7F 10		DELAY2:	MOV R7,#10H
+  270:	  021D	00		DELAY1: NOP
+  271:	  021E	DF FD				DJNZ R7,DELAY1
+  272:	  0220	DE F9				DJNZ R6,DELAY2
+  273:	  0222	22				RET
+  274:
+  275:				;LCD 间接控制方式的驱动子程序如下
+  276:
+  277:				;1 读BF和AC值
+  278:	  0223	C0 E0		PR0: 	PUSH ACC
+  279:	  0225	75 80 FF		    MOV P0,#0FFH ; P0置位, 准备读
+  280:	  0228	C2 A0			    CLR RS       ; RS=0
+  281:	  022A	D2 A1			    SETB RW      ; R/W=1
+  282:	  022C	D2 A2			    SETB E       ; E=1
+  283:	  022E	12 02 19		    LCALL DELAY
+  284:	  0231	85 80 50		    MOV COM,P0   ; 读BF和AC6-4值
+  285:	  0234	C2 A2			    CLR E        ; E=0
+  286:	  0236	D0 E0			    POP ACC
+  287:	  0238	22			    RET
+  288:
+  289:				;2 写指令代码子程序
+  290:	  0239	C0 E0		PR1: 	PUSH ACC
+  291:	  023B	C2 A0			    CLR RS    ; RS=0
+  292:	  023D	D2 A1			    SETB RW   ; R/W=1
+  293:	  023F	75 80 FF	PR11:	MOV P0,#0FFH; P0置位, 准备读
+  294:	  0242	D2 A2			    SETB E    ; E=1
+  295:	  0244	12 02 19		    LCALL DELAY
+  296:	  0247	00			    NOP
+  297:	  0248	E5 80			    MOV A,P0
+  298:	  024A	C2 A2			    CLR E
+  299:	  024C	20 E7 F0		    JB ACC.7,PR11;BF=1?
+  300:	  024F	C2 A1			    CLR RW    ; R/W=0
+  301:	  0251	85 50 80		    MOV P0,COM
+  302:	  0254	D2 A2			    SETB E    ; E=1
+  303:	  0256	C2 A2			    CLR E     ; E=0; E=0
+  304:	  0258	D0 E0			    POP ACC
+  305:	  025A	22			    RET
+  306:
+  307:				;3 写显示数据子程序
+  308:	  025B	C0 E0		PR2:	PUSH ACC
+  309:	  025D	C2 A0		    	CLR RS    ; RS=0
+  310:	  025F	D2 A1		    	SETB RW   ; R/W=1
+  311:	  0261	75 80 FF	PR21:	MOV P0,#0FFH
+  312:	  0264	D2 A2		    	SETB E    ; E=1
+  313:	  0266	12 02 19	    	LCALL DELAY
+  314:	  0269	E5 80		    	MOV A,P0  ; 读BF和AC6-4值
+  315:	  026B	C2 A2		    	CLR E     ; E=0
+  316:	  026D	20 E7 F1	    	JB ACC.7,PR21
+  317:	  0270	D2 A0		    	SETB RS
+  318:	  0272	C2 A1		    	CLR RW
+  319:	  0274	85 51 80	    	MOV P0,DAT; 写入数据高4位
+  320:	  0277	D2 A2		    	SETB E    ; RS=1
+  321:	  0279	C2 A2		    	CLR E     ; R/W=0
+  322:	  027B	D0 E0		    	POP ACC
+  323:	  027D	22		    	RET
+
+ASEM-51 V1.3                                         Copyright (c) 2002 by W.W. Heinz                                         PAGE 7
+
+
+
+ Line  I  Addr  Code            Source
+
+  324:				;****** 清屏 **************************************************
+  325:	  027E			WRIN0:
+  326:	  027E	75 50 01		MOV COM,#01H  ;LCd清0命令
+  327:	  0281	12 02 39	   	LCALL PR1     ;调写指令代码子程序
+  328:	  0284	75 50 06	   	MOV COM,#06H  ;输入方式命令，光标右移
+  329:	  0287	12 02 39	   	LCALL PR1     ;调写指令代码子程序
+  330:	  028A	75 50 08		MOV COM,#08H  ;关显示屏
+  331:	  028D	12 02 39		LCALL PR1  	  ;调写指令代码子程序
+  332:	  0290	22			RET
+  333:				;****** 计时抢答 **************************************************
+  334:	  0291			DIS_TIME_1:
+  335:	  0291	75 50 01		MOV COM,#01H  ;LCd清0命令
+  336:	  0294	12 02 39	   	LCALL PR1     ;调写指令代码子程序
+  337:	  0297	75 50 06	   	MOV COM,#06H  ;输入方式命令，光标右移
+  338:	  029A	12 02 39	   	LCALL PR1     ;调写指令代码子程序
+  339:	  029D	75 50 0C		MOV COM,#0CH  ;关闭光标
+  340:	  02A0	12 02 39		LCALL PR1	  ;调写指令代码子程序
+  341:	  02A3	75 50 80	   	MOV COM,#080H ;设置DDRAM地址
+  342:	  02A6	12 02 39	   	LCALL PR1     ;调写指令代码子程序
+  343:	  02A9	90 03 92	    MOV DPTR,#TAB1 ;DPTR指向显示字符表首地址
+  344:	  02AC	7A 10		   	MOV R2,#10H	  ;共显示16字符
+  345:	  02AE	7B 00			MOV R3,#00H
+  346:	  02B0			WRIN1:
+  347:	  02B0	EB			MOV A,R3
+  348:	  02B1	93			MOVC A,@A+DPTR ;取出显示字符
+  349:	  02B2	F5 51			MOV DAT,A
+  350:	  02B4	12 02 5B	   	LCALL PR2     ;调写显示数据子程序
+  351:	  02B7	0B			INC R3
+  352:	  02B8	DA F6		   	DJNZ R2,WRIN1
+  353:	  02BA	22			RET
+  354:
+  355:	  02BB			DIS_TIME_2:
+  356:	  02BB	75 50 C4		MOV COM,#0C4H ;设置DDRAM地址
+  357:	  02BE	12 02 39		LCALL PR1
+  358:	  02C1	90 03 B2		MOV DPTR,#SEGTAB
+  359:	  02C4	E5 30			MOV A,30H
+  360:	  02C6	71 7E			ACALL DIS_BIO
+  361:	  02C8	75 51 3A		MOV DAT,#03AH
+  362:	  02CB	12 02 5B		LCALL PR2
+  363:	  02CE	E5 31			MOV A,31H
+  364:	  02D0	71 7E			ACALL DIS_BIO
+  365:	  02D2	75 51 3A		MOV DAT,#03AH
+  366:	  02D5	12 02 5B		LCALL PR2
+  367:	  02D8	E5 32			MOV A,32H
+  368:	  02DA	71 7E			ACALL DIS_BIO
+  369:	  02DC	22			RET
+  370:				;****** 选手屏幕 **************************************************
+  371:	  02DD			DIS_PLAYER:
+  372:	  02DD			CK1:
+  373:	  02DD	B8 34 05		CJNE R0,#034H,CK2
+  374:	  02E0	75 90 57		MOV P1,#057H 		;点亮1号灯
+  375:	  02E3	AD 34			MOV R5,34H
+  376:	  02E5			CK2:
+  377:	  02E5	B8 35 05		CJNE R0,#035H,CK3
+  378:	  02E8	75 90 5D		MOV P1,#05DH 	;点亮2号灯
+  379:	  02EB	AD 35			MOV R5,35H
+
+ASEM-51 V1.3                                         Copyright (c) 2002 by W.W. Heinz                                         PAGE 8
+
+
+
+ Line  I  Addr  Code            Source
+
+  380:	  02ED			CK3:
+  381:	  02ED	B8 36 05		CJNE R0,#036H,CK4
+  382:	  02F0	75 90 75		MOV P1,#075H 	;点亮3号灯
+  383:	  02F3	AD 36			MOV R5,36H
+  384:	  02F5			CK4:
+  385:	  02F5	B8 37 05		CJNE R0,#037H,CK5
+  386:	  02F8	75 90 D5		MOV P1,#0D5H 	;点亮4号灯
+  387:	  02FB	AD 37			MOV R5,37H
+  388:	  02FD			CK5:
+  389:	  02FD	75 50 01		MOV COM,#01H  ;LCd清0命令
+  390:	  0300	12 02 39	   	LCALL PR1     ;调写指令代码子程序
+  391:	  0303	75 50 06	   	MOV COM,#06H  ;输入方式命令，光标右移
+  392:	  0306	12 02 39	   	LCALL PR1     ;调写指令代码子程序
+  393:	  0309	75 50 0C		MOV COM,#0CH  ;关闭光标
+  394:	  030C	12 02 39		LCALL PR1	  ;调写指令代码子程序
+  395:	  030F	75 50 80	   	MOV COM,#080H ;设置DDRAM地址
+  396:	  0312	12 02 39	   	LCALL PR1     ;调写指令代码子程序
+  397:	  0315	90 03 A2	    MOV DPTR,#TAB2 ;DPTR指向显示字符表首地址
+  398:	  0318	7A 10		   	MOV R2,#10H	  ;共显示16字符
+  399:	  031A	7B 00		   	MOV R3,#00H
+  400:	  031C			WRIN2:
+  401:	  031C	EB			MOV A,R3
+  402:	  031D	BB 0B 0A		CJNE R3,#0BH,WORKON2
+  403:	  0320	E5 33			MOV A,33H
+  404:	  0322	F5 51			MOV DAT,A
+  405:	  0324	12 02 5B	   	LCALL PR2     ;调写显示数据子程序
+  406:	  0327	0B		   	INC R3
+  407:	  0328	DA F2		   	DJNZ R2,WRIN2
+  408:	  032A			WORKON2:
+  409:	  032A	93			MOVC A,@A+DPTR ;取出显示字符
+  410:	  032B	F5 51		   	MOV DAT,A
+  411:	  032D	12 02 5B	   	LCALL PR2     ;调写显示数据子程序
+  412:	  0330	0B		   	INC R3
+  413:	  0331	DA E9		   	DJNZ R2,WRIN2
+  414:	  0333			WRIN_SCORE:
+  415:	  0333	90 03 B2		MOV DPTR,#SEGTAB ;DPTR指向显示字符表首地址
+  416:	  0336	75 50 C7		MOV COM,#0C7H ;设置DDRAM地址
+  417:	  0339	12 02 39		LCALL PR1
+  418:	  033C	ED			MOV A,R5
+  419:	  033D	71 7E			ACALL DIS_BIO
+  420:	  033F	22			RET
+  421:
+  422:	  0340			DELAY200MS:
+  423:	  0340	C0 40			PUSH 40H
+  424:	  0342	C0 41			PUSH 41H
+  425:	  0344	C0 42			PUSH 42H
+  426:	  0346	75 40 08		MOV 40H,#8
+  427:	  0349	75 41 4C		MOV 41H,#76
+  428:	  034C	75 42 A5		MOV 42H,#165
+  429:	  034F			BEEP_DELAY:
+  430:	  034F	D5 42 FD		DJNZ 42H,BEEP_DELAY
+  431:	  0352	D5 41 FA		DJNZ 41H,BEEP_DELAY
+  432:	  0355	D5 40 F7		DJNZ 40H,BEEP_DELAY
+  433:	  0358	D0 40			POP 40H
+  434:	  035A	D0 41			POP 41H
+  435:	  035C	D0 42			POP 42H
+
+ASEM-51 V1.3                                         Copyright (c) 2002 by W.W. Heinz                                         PAGE 9
+
+
+
+ Line  I  Addr  Code            Source
+
+  436:	  035E	22			RET
+  437:	  035F			DELAY500MS:			;@12.000MHz
+  438:	  035F	C0 30			PUSH 30H
+  439:	  0361	C0 31			PUSH 31H
+  440:	  0363	C0 32			PUSH 32H
+  441:	  0365	75 30 13		MOV 30H,#19
+  442:	  0368	75 31 3E		MOV 31H,#62
+  443:	  036B	75 32 28		MOV 32H,#40
+  444:	  036E			DIS_DELAY:
+  445:	  036E	D5 32 FD		DJNZ 32H,DIS_DELAY
+  446:	  0371	D5 31 FA		DJNZ 31H,DIS_DELAY
+  447:	  0374	D5 30 F7		DJNZ 30H,DIS_DELAY
+  448:	  0377	D0 32			POP 32H
+  449:	  0379	D0 31			POP 31H
+  450:	  037B	D0 30			POP 30H
+  451:	  037D	22			RET
+  452:	  037E			DIS_BIO:
+  453:	  037E	75 F0 0A		MOV B,#0AH
+  454:	  0381	84			DIV AB
+  455:	  0382	D4			DA A
+  456:	  0383	93			MOVC A,@A+DPTR
+  457:	  0384	F5 51			MOV DAT,A
+  458:	  0386	12 02 5B		LCALL PR2
+  459:	  0389	E5 F0			MOV A,B
+  460:	  038B	93			MOVC A,@A+DPTR
+  461:	  038C	F5 51			MOV DAT,A
+  462:	  038E	12 02 5B		LCALL PR2
+  463:	  0391	22			RET
+  464:				;****** LED数码管段码表 **************************************************
+  465:	  0392	20 20 50 52	TAB1:	DB "  PRESS BUTTON  "
+	  0396	45 53 53 20
+	  039A	42 55 54 54
+	  039E	4F 4E 20 20
+  466:	  03A2	20 20 20 20	TAB2: 	DB "    PLAYER      "
+	  03A6	50 4C 41 59
+	  03AA	45 52 20 20
+	  03AE	20 20 20 20
+  467:	  03B2	30 31 32 33	SEGTAB: DB "0123456789"
+	  03B6	34 35 36 37
+	  03BA	38 39
+  468:					END	;整个程序结束
+
+
+
+
+
+                     register banks used:  ---
+
+                     no errors
+
+
+
+
+ASEM-51 V1.3                                        Copyright (c) 2002 by W.W. Heinz                                         PAGE 10
+
+
+
+
+
+	       L I S T   O F   S Y M B O L S
+	       =============================
+
+
+SYMBOL				  TYPE     VALUE	LINE
+------------------------------------------------------------
+??ASEM_51			  NUMBER    8051
+??VERSION			  NUMBER    0130
+AC				  BIT	      D6
+ACC				  DATA	      E0
+ADJ1				  CODE	    007F	  44
+ADJ2				  CODE	    0138	 144
+B				  DATA	      F0
+BEEP_DELAY			  CODE	    034F	 429
+BK				  CODE	    019A	 201
+BKTM				  CODE	    00D9	  97
+C1				  CODE	    010C	 123
+C2				  CODE	    0117	 128
+C3				  CODE	    0122	 133
+C4				  CODE	    012D	 138
+CK1				  CODE	    02DD	 372
+CK2				  CODE	    02E5	 376
+CK3				  CODE	    02ED	 380
+CK4				  CODE	    02F5	 384
+CK5				  CODE	    02FD	 388
+COM				  NUMBER    0050	   1
+CONTINUE			  CODE	    00F8	 114
+COTN				  CODE	    018C	 195
+CY				  BIT	      D7
+DAT				  NUMBER    0051	   2
+DELAY				  CODE	    0219	 268
+DELAY1				  CODE	    021D	 270
+DELAY2				  CODE	    021B	 269
+DELAY200MS			  CODE	    0340	 422
+DELAY500MS			  CODE	    035F	 437
+DES1				  CODE	    00C9	  87
+DES2				  CODE	    017C	 185
+DIS1				  CODE	    0088	  49
+DIS2				  CODE	    0140	 151
+DIS_BIO				  CODE	    037E	 452
+DIS_DELAY			  CODE	    036E	 444
+DIS_PLAYER			  CODE	    02DD	 371
+DIS_TIME_1			  CODE	    0291	 334
+DIS_TIME_2			  CODE	    02BB	 355
+DPH				  DATA	      83
+DPL				  DATA	      82
+E				  NUMBER    00A2	   6
+EA				  BIT	      AF
+ES				  BIT	      AC
+ET0				  BIT	      A9
+ET1				  BIT	      AB
+EX0				  BIT	      A8
+EX1				  BIT	      AA
+EXTI0				  CODE	    0003
+EXTI1				  CODE	    0013
+F0				  BIT	      D5
+
+ASEM-51 V1.3                                        Copyright (c) 2002 by W.W. Heinz                                         PAGE 11
+
+
+
+SYMBOL				  TYPE     VALUE	LINE
+------------------------------------------------------------
+IE				  DATA	      A8
+IE0				  BIT	      89
+IE1				  BIT	      8B
+INC1				  CODE	    00B9	  78
+INC2				  CODE	    016E	 177
+INT				  CODE	    01E7	 247
+INT0				  BIT	      B2
+INT1				  BIT	      B3
+INTT1				  CODE	    01F3	 252
+IP				  DATA	      B8
+IT0				  BIT	      88
+IT1				  BIT	      8A
+LOP				  CODE	    007D	  41
+LOP1				  CODE	    008D	  53
+LOP2				  CODE	    0109	 121
+MAIN				  CODE	    0040	  17
+NEXT1				  CODE	    00A3	  66
+NEXT2				  CODE	    0158	 165
+OV				  BIT	      D2
+P				  BIT	      D0
+P0				  DATA	      80
+P1				  DATA	      90
+P2				  DATA	      A0
+P3				  DATA	      B0
+PCON				  DATA	      87
+PR0				  CODE	    0223	 278
+PR1				  CODE	    0239	 290
+PR11				  CODE	    023F	 293
+PR2				  CODE	    025B	 308
+PR21				  CODE	    0261	 311
+PREV1				  CODE	    008D	  54
+PREV2				  CODE	    0142	 153
+PS				  BIT	      BC
+PSW				  DATA	      D0
+PT0				  BIT	      B9
+PT1				  BIT	      BB
+PX0				  BIT	      B8
+PX1				  BIT	      BA
+RACE				  CODE	    00EB	 108
+RB8				  BIT	      9A
+RD				  BIT	      B7
+REN				  BIT	      9C
+RESET				  CODE	    0000
+RETI1				  CODE	    00E1	 101
+RETI2				  CODE	    01A2	 205
+RI				  BIT	      98
+RS				  NUMBER    00A0	   4
+RS0				  BIT	      D3
+RS1				  BIT	      D4
+RW				  NUMBER    00A1	   5
+RXD				  BIT	      B0
+SBUF				  DATA	      99
+SCON				  DATA	      98
+SEGTAB				  CODE	    03B2	 467
+SINT				  CODE	    0023
+SM0				  BIT	      9F
+
+ASEM-51 V1.3                                        Copyright (c) 2002 by W.W. Heinz                                         PAGE 12
+
+
+
+SYMBOL				  TYPE     VALUE	LINE
+------------------------------------------------------------
+SM1				  BIT	      9E
+SM2				  BIT	      9D
+SP				  DATA	      81
+T0				  BIT	      B4
+T1				  BIT	      B5
+TAB1				  CODE	    0392	 465
+TAB2				  CODE	    03A2	 466
+TB8				  BIT	      9B
+TCON				  DATA	      88
+TEMP1				  CODE	    00D5	  93
+TEMP2				  CODE	    0188	 191
+TF0				  BIT	      8D
+TF1				  BIT	      8F
+TH0				  DATA	      8C
+TH1				  DATA	      8D
+TI				  BIT	      99
+TIMER0				  CODE	    000B
+TIMER1				  CODE	    001B
+TL0				  DATA	      8A
+TL1				  DATA	      8B
+TMOD				  DATA	      89
+TR0				  BIT	      8C
+TR1				  BIT	      8E
+TT0				  CODE	    01B0	 214
+TT0_RT				  CODE	    01E2	 241
+TXD				  BIT	      B1
+WORKON2				  CODE	    032A	 408
+WR				  BIT	      B6
+WRIN0				  CODE	    027E	 325
+WRIN1				  CODE	    02B0	 346
+WRIN2				  CODE	    031C	 400
+WRIN_SCORE			  CODE	    0333	 414
